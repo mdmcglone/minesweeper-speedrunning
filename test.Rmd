@@ -1,0 +1,174 @@
+---
+title: "test"
+author: "me"
+date: "12/6/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+mines <- read.csv('data/minesweeper.csv')  
+  
+
+
+mines_fit <- stan_glm(data = mines %>% filter(win == TRUE), formula = time ~ difficulty, refresh = 0, family = gaussian())
+
+
+
+new_data <- tibble(difficulty = c('expert','intermediate'))
+
+mines_pp <- posterior_predict(mines_fit)
+
+print(mines_fit)
+mines_pp_data <- mines_pp %>% as_tibble() %>% 
+  rename('expert' = `1`, 'intermediate' = `4`, 'beginner' = `16`) %>% 
+  select(expert,beginner,intermediate) %>% 
+  pivot_longer(cols = expert:intermediate, names_to = 'diff', values_to = 'time')
+```
+
+```{r}
+
+mines_pro <- read.csv('data/minesweeper_pro.csv')  
+
+        mines %>%
+            drop_na() %>% 
+            filter(difficulty == 'expert') %>% 
+            ggplot(aes(x = time)) +
+            geom_histogram(aes(y = after_stat(count/sum(count)), fill = win), bins = 15) + 
+            theme_classic() +
+            labs(x = 'Time at Loss', y = 'Percent', 
+                 title = 'Actual Distribution of Minesweeper Times at Game Over') +
+           scale_fill_discrete(name = 'Win or Loss', labels = c('Loss', 'Win'))
+        
+        
+               mines_pro %>%
+            drop_na() %>% 
+            ggplot(aes(x = time)) +
+            geom_histogram(aes(y = after_stat(count/sum(count)), fill = win), bins = 15) + 
+            theme_classic() +
+            labs(x = 'Time (seconds)', y = 'Percent', 
+                 title = 'Actual Distribution of Minesweeper Times at Game Over') +
+            scale_fill_discrete(name = 'Win or Loss', labels = c('Loss', 'Win')) +
+                  scale_y_continuous(labels = scales::percent)
+```
+```{r}
+        mines_pro %>% 
+        drop_na() %>% 
+            group_by(end_cause) %>% 
+            summarise(n = n(), mean_time = mean(time)) %>%
+            mutate(freq = n / sum(n)) %>% 
+            ggplot(aes(fill = end_cause, y = freq, x = fct_reorder(end_cause, freq))) + 
+            geom_bar(stat="identity") + 
+            theme_classic() +
+            labs(x = 'End Cause', y = 'Percent',
+                 title = 'Distribution of Game End Causes',
+                 fill = 'End Cause') +
+            scale_y_continuous(labels = scales::percent) +
+  theme(legend.position = 'none') +  scale_x_discrete(labels = c('win','misclick','misflag','guess'))
+
+
+```
+
+```{r}
+stats_pro <- mines_pro %>% 
+  filter(difficulty == 'expert') %>% 
+  mutate(minerate = (99 - mines_left)/time) %>% 
+  summarize(minerate = mean(minerate), winrate = sum(win)/n(), 
+            time = mean(time), mines_left = mean(mines_left)) %>% 
+  mutate(player = 'eXtine')
+
+stats <- mines %>% 
+  filter(difficulty == 'expert') %>% 
+  mutate(minerate = (99 - mines_left)/time) %>% 
+  summarize(minerate = mean(minerate), winrate = sum(win)/n(), 
+            time = mean(time), mines_left = mean(mines_left)) %>% 
+  mutate(player = 'Matt')
+
+full_join(stats, stats_pro) %>% 
+  gt() %>% 
+  tab_header(title = 'Player Stats Compared') %>% 
+  cols_label(
+    minerate = "Mines Per Second",
+    winrate = "Proportion of Wins",
+    time = "Average Game Length",
+    mines_left = "Average Mines Remaining",
+    player = 'Player'
+  ) %>% 
+   fmt_number(
+    columns = vars(minerate, winrate, time),
+    decimals = 3)
+
+
+
+```
+
+
+```{r}
+mines_fit_pro <- stan_glm(data = mines_pro %>% filter(win == TRUE), formula = time ~ 1, refresh = 0, family = gaussian())
+
+mines_pp_pro <- posterior_predict(mines_fit_pro) %>% 
+  as_tibble() %>% 
+  select(`1`) %>% 
+  rename('time' = `1`) 
+
+mines_pp_pro %>% 
+  ggplot(aes(x = time)) +
+  geom_density() +
+  labs(x = 'Win Time (seconds)', y = 'Probability',
+       title = 'Predicted Win Times In Expert Difficulty') + 
+  theme_classic() 
+
+
+saveRDS(mines_pp_pro, file = 'mines_pp_pro.rds')
+
+```
+
+```{r}
+
+time_pred_pro <- tibble(time = 1:150) %>% 
+  mutate(probability = map_dbl(time, ~plogis(-8.426 + .*.115))) %>% 
+  mutate(player = 'eXtine')
+
+
+
+
+time_pred <- tibble(time = 1:150) %>% 
+  mutate(probability = map_dbl(time, ~plogis(-9.924 + .*.093))) %>% 
+  mutate(player = 'Matt')
+
+
+full_join(time_pred_pro, time_pred) %>%
+  gt() %>% 
+  tab_header(title = 'Probability of A Game Ending in Victory ',
+             subtitle = 'Conditioned on reaching the selected time') %>%
+  fmt_number(
+    columns = vars(probability),
+    decimals = 4)
+
+full_join(time_pred_pro, time_pred) %>% 
+  ggplot(aes(x = time, y = probability, color = player)) +
+  geom_line() +
+  theme_classic() +
+  labs(title = 'Odds of Victory Conditioned on Reaching the Corresponding Time',
+       x = 'Time', y = 'Probability of Victory')
+
+
+
+```
+
+
+
+
+```{r}
+mines_pp_data <- readRDS('mines_pp_data.rds')
+mines_pp_pro <- readRDS('mines_pp_pro.rds')
+
+
+
+```
+
+

@@ -1,0 +1,12 @@
+name: minesweeper
+title: minesweeper
+username:
+account: mdmcglone
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 3358566
+bundleId: 3980411
+url: https://mdmcglone.shinyapps.io/minesweeper/
+when: 1607808031.43853
+asMultiple: FALSE
+asStatic: FALSE
